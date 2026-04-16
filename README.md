@@ -1,5 +1,9 @@
 # claude-vault
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![Node.js](https://img.shields.io/badge/Node.js-18%2B-green.svg)](https://nodejs.org)
+[![AES-256-GCM](https://img.shields.io/badge/Encryption-AES--256--GCM-orange.svg)]()
+
 Encrypt your Claude Code `.md` files at rest. CLAUDE.md, SKILL.md, memory — anything you want private on disk and in git.
 
 ## The problem
