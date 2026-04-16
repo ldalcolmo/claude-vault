@@ -1,0 +1,38 @@
+{
+  "name": "claude-vault",
+  "version": "0.1.0",
+  "description": "Encrypt markdown files at rest so Claude Code instructions stay private on disk and in version control.",
+  "main": "dist/index.js",
+  "bin": {
+    "claude-vault": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "ts-node src/index.ts",
+    "test": "node test/run.js",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "encryption",
+    "vault",
+    "security",
+    "markdown"
+  ],
+  "author": "Lucas Dalcolmo",
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "@types/node": "^20.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "dist/",
+    "scripts/",
+    "README.md",
+    "LICENSE"
+  ]
+}
