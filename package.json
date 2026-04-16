@@ -1,5 +1,5 @@
 {
-  "name": "claude-vault",
+  "name": "@ldalcolmo/claude-vault",
   "version": "0.1.0",
   "description": "Encrypt markdown files at rest so Claude Code instructions stay private on disk and in version control.",
   "main": "dist/index.js",
