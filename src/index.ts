@@ -8,11 +8,12 @@ import { findFiles, loadConfig } from "./files";
 const USAGE = `claude-vault — encrypt markdown files at rest
 
 Usage:
+  claude-vault setup   [--root <dir>]    Full setup: config + hooks + first encrypt
   claude-vault encrypt [--root <dir>]    Lock files
   claude-vault decrypt [--root <dir>]    Unlock files
   claude-vault status  [--root <dir>]    Show lock state
-  claude-vault init    [--root <dir>]    Setup config + gitignore
-  claude-vault hook-decrypt              Pre-session hook (internal)
+  claude-vault init    [--root <dir>]    Create config only (no hooks, no encrypt)
+  claude-vault hook-decrypt              Pre-tool hook (internal)
   claude-vault hook-encrypt              Post-session hook (internal)
 
 Environment:
@@ -36,36 +37,35 @@ function getRoot(args: string[]): string {
   return (i !== -1 && args[i + 1]) ? path.resolve(args[i + 1]) : process.cwd();
 }
 
-function cmdEncrypt(root: string) {
+function cmdEncrypt(root: string, quiet = false) {
   const key = getKey();
   const { patterns } = loadConfig(root);
   const files = findFiles(root, patterns);
 
-  if (!files.length) { console.log("No files matched."); return; }
+  if (!files.length) { if (!quiet) console.log("No files matched."); return; }
 
   let locked = 0, skipped = 0;
   for (const f of files) {
     const buf = fs.readFileSync(f);
     if (isEncrypted(buf)) { skipped++; continue; }
 
-    // first-time backup
     const bak = f + ".bak";
     if (!fs.existsSync(bak)) fs.writeFileSync(bak, buf);
 
     fs.writeFileSync(f, encrypt(buf.toString("utf8"), key));
     locked++;
-    console.log(`  locked: ${path.relative(root, f)}`);
+    if (!quiet) console.log(`  locked: ${path.relative(root, f)}`);
   }
 
-  console.log(`\n${locked} locked, ${skipped} already locked.`);
+  if (!quiet) console.log(`\n${locked} locked, ${skipped} already locked.`);
 }
 
-function cmdDecrypt(root: string) {
+function cmdDecrypt(root: string, quiet = false) {
   const key = getKey();
   const { patterns } = loadConfig(root);
   const files = findFiles(root, patterns);
 
-  if (!files.length) { console.log("No files matched."); return; }
+  if (!files.length) { if (!quiet) console.log("No files matched."); return; }
 
   let unlocked = 0, skipped = 0;
   for (const f of files) {
@@ -74,10 +74,10 @@ function cmdDecrypt(root: string) {
 
     fs.writeFileSync(f, decrypt(buf, key), "utf8");
     unlocked++;
-    console.log(`  unlocked: ${path.relative(root, f)}`);
+    if (!quiet) console.log(`  unlocked: ${path.relative(root, f)}`);
   }
 
-  console.log(`\n${unlocked} unlocked, ${skipped} already unlocked.`);
+  if (!quiet) console.log(`\n${unlocked} unlocked, ${skipped} already unlocked.`);
 }
 
 function cmdStatus(root: string) {
@@ -111,7 +111,6 @@ function cmdInit(root: string) {
     console.log("Created .claude-vault");
   }
 
-  // .gitignore
   const giPath = path.join(root, ".gitignore");
   let gi = fs.existsSync(giPath) ? fs.readFileSync(giPath, "utf8") : "";
   if (!gi.includes("*.bak")) {
@@ -119,22 +118,69 @@ function cmdInit(root: string) {
     fs.writeFileSync(giPath, gi);
     console.log("Added *.bak to .gitignore");
   }
-
-  console.log(`
-Add to .claude/settings.json for auto-lock:
-
-{
-  "hooks": {
-    "PreToolUse": [{
-      "matcher": "Read|Grep|Glob",
-      "hook": "claude-vault hook-decrypt"
-    }],
-    "PostSession": [{
-      "hook": "claude-vault hook-encrypt"
-    }]
-  }
 }
-`);
+
+function installHooks(root: string) {
+  // find or create .claude/settings.json
+  const claudeDir = path.join(root, ".claude");
+  const settingsPath = path.join(claudeDir, "settings.json");
+
+  if (!fs.existsSync(claudeDir)) fs.mkdirSync(claudeDir, { recursive: true });
+
+  let settings: any = {};
+  if (fs.existsSync(settingsPath)) {
+    try { settings = JSON.parse(fs.readFileSync(settingsPath, "utf8")); } catch { settings = {}; }
+  }
+
+  if (!settings.hooks) settings.hooks = {};
+
+  // PreToolUse — decrypt before Claude reads anything
+  const preHook = {
+    matcher: "Read|Grep|Glob",
+    hook: `claude-vault hook-decrypt --root "${root}"`,
+  };
+
+  if (!settings.hooks.PreToolUse) settings.hooks.PreToolUse = [];
+  const hasPreHook = settings.hooks.PreToolUse.some((h: any) =>
+    typeof h.hook === "string" && h.hook.includes("claude-vault")
+  );
+  if (!hasPreHook) {
+    settings.hooks.PreToolUse.push(preHook);
+    console.log("Added PreToolUse hook (decrypt before read).");
+  }
+
+  // PostSession — encrypt when session ends
+  const postHook = {
+    hook: `claude-vault hook-encrypt --root "${root}"`,
+  };
+
+  if (!settings.hooks.PostSession) settings.hooks.PostSession = [];
+  const hasPostHook = settings.hooks.PostSession.some((h: any) =>
+    typeof h.hook === "string" && h.hook.includes("claude-vault")
+  );
+  if (!hasPostHook) {
+    settings.hooks.PostSession.push(postHook);
+    console.log("Added PostSession hook (encrypt on exit).");
+  }
+
+  fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + "\n");
+  console.log(`Hooks saved to ${settingsPath}`);
+}
+
+function cmdSetup(root: string) {
+  console.log(`claude-vault setup — ${root}\n`);
+
+  // step 1: config
+  cmdInit(root);
+
+  // step 2: hooks
+  installHooks(root);
+
+  // step 3: first encrypt
+  console.log("");
+  cmdEncrypt(root);
+
+  console.log("\nDone. Files are locked. Hooks will auto-decrypt/encrypt on Claude Code sessions.");
 }
 
 // ---
@@ -143,8 +189,11 @@ const args = process.argv.slice(2);
 const cmd = args[0];
 
 if (!cmd || cmd === "--help" || cmd === "-h") { console.log(USAGE); }
-else if (cmd === "encrypt" || cmd === "hook-encrypt") cmdEncrypt(getRoot(args));
-else if (cmd === "decrypt" || cmd === "hook-decrypt") cmdDecrypt(getRoot(args));
+else if (cmd === "setup") cmdSetup(getRoot(args));
+else if (cmd === "encrypt") cmdEncrypt(getRoot(args));
+else if (cmd === "decrypt") cmdDecrypt(getRoot(args));
 else if (cmd === "status") cmdStatus(getRoot(args));
 else if (cmd === "init") cmdInit(getRoot(args));
+else if (cmd === "hook-decrypt") cmdDecrypt(getRoot(args), true);
+else if (cmd === "hook-encrypt") cmdEncrypt(getRoot(args), true);
 else { console.error(`Unknown: ${cmd}`); console.log(USAGE); process.exit(1); }
