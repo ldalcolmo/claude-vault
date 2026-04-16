@@ -2,6 +2,7 @@
 
 import * as fs from "fs";
 import * as path from "path";
+import { randomBytes } from "crypto";
 import { encrypt, decrypt, isEncrypted } from "./crypto";
 import { findFiles, loadConfig } from "./files";
 
@@ -12,6 +13,7 @@ Usage:
   claude-vault encrypt [--root <dir>]    Lock files
   claude-vault decrypt [--root <dir>]    Unlock files
   claude-vault status  [--root <dir>]    Show lock state
+  claude-vault keygen                    Generate a strong random key
   claude-vault init    [--root <dir>]    Create config only (no hooks, no encrypt)
   claude-vault hook-decrypt              Pre-tool hook (internal)
   claude-vault hook-encrypt              Post-session hook (internal)
@@ -183,6 +185,12 @@ function cmdSetup(root: string) {
   console.log("\nDone. Files are locked. Hooks will auto-decrypt/encrypt on Claude Code sessions.");
 }
 
+function cmdKeygen() {
+  const key = randomBytes(32).toString("base64url");
+  console.log(key);
+  console.log(`\nAdd to your shell profile:\n  export CLAUDE_VAULT_KEY="${key}"`);
+}
+
 // ---
 
 const args = process.argv.slice(2);
@@ -190,6 +198,7 @@ const cmd = args[0];
 
 if (!cmd || cmd === "--help" || cmd === "-h") { console.log(USAGE); }
 else if (cmd === "setup") cmdSetup(getRoot(args));
+else if (cmd === "keygen") cmdKeygen();
 else if (cmd === "encrypt") cmdEncrypt(getRoot(args));
 else if (cmd === "decrypt") cmdDecrypt(getRoot(args));
 else if (cmd === "status") cmdStatus(getRoot(args));
