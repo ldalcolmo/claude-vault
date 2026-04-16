@@ -14,6 +14,7 @@ Usage:
   claude-vault decrypt [--root <dir>]    Unlock files
   claude-vault status  [--root <dir>]    Show lock state
   claude-vault keygen                    Generate a strong random key
+  claude-vault clean   [--root <dir>]    Delete .bak backup files
   claude-vault init    [--root <dir>]    Create config only (no hooks, no encrypt)
   claude-vault hook-decrypt              Pre-tool hook (internal)
   claude-vault hook-encrypt              Post-session hook (internal)
@@ -185,6 +186,22 @@ function cmdSetup(root: string) {
   console.log("\nDone. Files are locked. Hooks will auto-decrypt/encrypt on Claude Code sessions.");
 }
 
+function cmdClean(root: string) {
+  const { patterns } = loadConfig(root);
+  const files = findFiles(root, patterns);
+  let removed = 0;
+
+  for (const f of files) {
+    const bak = f + ".bak";
+    if (fs.existsSync(bak)) {
+      fs.unlinkSync(bak);
+      removed++;
+      console.log(`  removed: ${path.relative(root, bak)}`);
+    }
+  }
+  console.log(removed > 0 ? `\n${removed} backup(s) deleted.` : "No backups found.");
+}
+
 function cmdKeygen() {
   const key = randomBytes(32).toString("base64url");
   console.log(key);
@@ -199,10 +216,11 @@ const cmd = args[0];
 if (!cmd || cmd === "--help" || cmd === "-h") { console.log(USAGE); }
 else if (cmd === "setup") cmdSetup(getRoot(args));
 else if (cmd === "keygen") cmdKeygen();
+else if (cmd === "clean") cmdClean(getRoot(args));
 else if (cmd === "encrypt") cmdEncrypt(getRoot(args));
 else if (cmd === "decrypt") cmdDecrypt(getRoot(args));
 else if (cmd === "status") cmdStatus(getRoot(args));
 else if (cmd === "init") cmdInit(getRoot(args));
-else if (cmd === "hook-decrypt") cmdDecrypt(getRoot(args), true);
-else if (cmd === "hook-encrypt") cmdEncrypt(getRoot(args), true);
+else if (cmd === "hook-decrypt") { if (!process.env.CLAUDE_VAULT_KEY) process.exit(0); cmdDecrypt(getRoot(args), true); }
+else if (cmd === "hook-encrypt") { if (!process.env.CLAUDE_VAULT_KEY) process.exit(0); cmdEncrypt(getRoot(args), true); }
 else { console.error(`Unknown: ${cmd}`); console.log(USAGE); process.exit(1); }

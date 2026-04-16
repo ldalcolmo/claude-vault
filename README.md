@@ -50,6 +50,8 @@ That's it. From now on, files decrypt when Claude Code reads them and encrypt wh
 | `encrypt` | Lock all matching files |
 | `decrypt` | Unlock all matching files |
 | `status` | Show which files are locked or unlocked |
+| `keygen` | Generate a strong random passphrase |
+| `clean` | Delete `.bak` backup files after you've confirmed the key works |
 | `init` | Create config only (no hooks, no encrypt) |
 
 All commands accept `--root <dir>` to target a specific directory.

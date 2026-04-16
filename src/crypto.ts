@@ -27,7 +27,7 @@ export function encrypt(plaintext: string, passphrase: string): Buffer {
 }
 
 export function decrypt(data: Buffer, passphrase: string): string {
-  const minLen = MAGIC.length + SALT_LENGTH + IV_LENGTH + TAG_LENGTH + 1;
+  const minLen = MAGIC.length + SALT_LENGTH + IV_LENGTH + TAG_LENGTH;
   if (data.length < minLen) {
     throw new Error("File too short to be a valid vault file.");
   }
